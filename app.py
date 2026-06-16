@@ -118,6 +118,8 @@ color_map = {
 }
 
 # 6. 图表绘制模块
+# 【终极修复1】：使用 Streamlit 原生大标题，去除图表内部标题避免拥挤
+st.subheader("Price & Moving Averages")
 fig_price = gr.Figure()
 fig_price.add_trace(gr.Scatter(x=df.index, y=df['Close'], name=f'{ticker} Close', line=dict(color='black', width=1.5)))
 for ma in ma_periods:
@@ -126,14 +128,16 @@ for ma in ma_periods:
     fig_price.add_trace(gr.Scatter(x=df.index, y=df[ma_name], name=ma_name, line=dict(color=line_color, width=1.2)))
     
 fig_price.update_layout(
-    title="Price & Moving Averages",
     yaxis_type="log" if log_scale else "linear",
-    height=400, margin=dict(l=20, r=20, t=40, b=20),
+    height=400, 
+    margin=dict(l=20, r=20, t=10, b=20), # t=10 缩小顶部留白，让图表紧凑
     hovermode="x unified",
     legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="left", x=0, title=None)
 )
 st.plotly_chart(fig_price, use_container_width=True)
 
+# 【终极修复1】：附图同样使用 Streamlit 原生大标题
+st.subheader(f"SMA Slopes (% per day, {slope_lookback}-day lookback)")
 fig_slope = gr.Figure()
 for ma in ma_periods:
     ma_name = f'{ma}DMA'
@@ -142,11 +146,11 @@ for ma in ma_periods:
     
 fig_slope.add_shape(type="line", x0=df.index[0], y0=0, x1=df.index[-1], y1=0, line=dict(color="gray", dash="dash"))
 
-# 【终极修复1&2】：补充 Y轴标题，并将图例水平置顶
+# 【终极修复2】：增加 dtick=0.2 强制刻度间距
 fig_slope.update_layout(
-    title=f"SMA Slopes (% per day, {slope_lookback}-day lookback)",
-    yaxis_title="Slope (% per day)",
-    height=300, margin=dict(l=20, r=20, t=40, b=20),
+    yaxis=dict(title="Slope (% per day)", dtick=0.2), 
+    height=300, 
+    margin=dict(l=20, r=20, t=10, b=20),
     hovermode="x unified",
     legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="left", x=0, title=None)
 )
@@ -154,7 +158,7 @@ st.plotly_chart(fig_slope, use_container_width=True)
 
 st.markdown("---")
 
-# 【终极修复3】：使用折叠面板 (expander) 隐藏表格和原始数据
+# 7. 统计表格渲染
 with st.expander("Slope statistics for selected window"):
     stats_df = pd.DataFrame(stats_list).drop(columns=['MA_Value', 'Percentile'])
     stats_df = stats_df.set_index("MA")
@@ -166,6 +170,5 @@ with st.expander("Raw data (last 30 rows)"):
     display_cols = ['Close']
     for ma in ma_periods:
         display_cols.extend([f'{ma}DMA', f'{ma}Slope'])
-    # 提取最后 30 行，并按时间倒序排列（最新一天在最上面）
     raw_df = df[display_cols].tail(30).sort_index(ascending=False)
     st.dataframe(raw_df, use_container_width=True)
