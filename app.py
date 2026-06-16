@@ -1,18 +1,17 @@
-import streamlit as st
+=import streamlit as st
 import yfinance as yf
 import pandas as pd
 import numpy as np
 import plotly.graph_objects as gr
-from scipy.stats import linregress
 
 # 1. 页面配置
 st.set_page_config(page_title="MA Slope Dashboard", layout="wide")
-st.title("📊 Moving Averages & Slope Dashboard")
 
 # 2. 左侧配置栏 (Sidebar)
 st.sidebar.header("Configuration")
 ticker = st.sidebar.text_input("Ticker", value="QQQ").upper()
-date_range = st.sidebar.selectbox("Date range", ["1Y", "3Y", "5Y", "10Y"], index=1)
+# 默认选项改为了 5Y (index=2)
+date_range = st.sidebar.selectbox("Date range", ["1Y", "3Y", "5Y", "10Y"], index=2)
 ma_input = st.sidebar.text_input("MA periods (comma-separated)", value="20, 50, 200")
 slope_lookback = st.sidebar.slider("Slope lookback (trading days)", min_value=2, max_value=20, value=5)
 log_scale = st.sidebar.checkbox("Log scale on price", value=True)
@@ -28,10 +27,9 @@ except:
 range_dict = {"1Y": "1y", "3Y": "3y", "5Y": "5y", "10Y": "10y"}
 
 # 3. 数据下载与处理
-@st.cache_data(ttl=3600)  # 缓存数据 1 小时，避免重复请求
+@st.cache_data(ttl=3600)  
 def load_data(symbol, period):
     data = yf.download(symbol, period=period)
-    # yfinance返回的多级索引处理
     if isinstance(data.columns, pd.MultiIndex):
         data.columns = data.columns.droplevel(1)
     return data[['Close']].dropna()
@@ -46,33 +44,22 @@ if df.empty:
     st.warning("未找到该股票数据")
     st.stop()
 
-# 4. 量化核心计算：均线与滚动斜率
-def calculate_slope(series, window):
-    """使用最小二乘法计算滚动窗口的线性回归斜率，并转换为每日百分比"""
-    slopes = [np.nan] * len(series)
-    x = np.arange(window)
-    
-    # 转换为 numpy 数组加速计算
-    y_vals = series.values
-    
-    for i in range(window - 1, len(series)):
-        y = y_vals[i - window + 1 : i + 1]
-        if np.isnan(y).any():
-            continue
-        slope, _, _, _, _ = linregress(x, y)
-        # 斜率归一化：(绝对斜率 / 当前价格) * 100 变成百分比
-        slopes[i] = (slope / y_vals[i]) * 100
-    return pd.Series(slopes, index=series.index)
+# --- 新版 UI：动态标题与副标题 ---
+st.title(f"📊 {ticker} — Moving Averages & Slope Dashboard")
+start_date_str = df.index[0].strftime('%Y-%m-%d')
+end_date_str = df.index[-1].strftime('%Y-%m-%d')
+st.caption(f"Range: {start_date_str} → {end_date_str} ({len(df)} trading days)")
 
-# 计算各项指标
+# 4. 量化核心计算：均线与最新极简斜率公式
 stats_list = []
 latest_close = df['Close'].iloc[-1]
 latest_date = df.index[-1].strftime('%Y-%m-%d')
 
-# 动态计算用户输入的每一条均线
 for ma in ma_periods:
     df[f'{ma}DMA'] = df['Close'].rolling(window=ma).mean()
-    df[f'{ma}Slope'] = calculate_slope(df[f'{ma}DMA'], slope_lookback)
+    
+    # 【核心逻辑更新】使用 pct_change 直接计算 N天区间的涨跌幅，除以天数得到日均百分比
+    df[f'{ma}Slope'] = (df[f'{ma}DMA'].pct_change(periods=slope_lookback) * 100) / slope_lookback
     
     # 计算统计特征
     slope_series = df[f'{ma}Slope'].dropna()
@@ -130,12 +117,22 @@ for idx, stat in enumerate(stats_list):
 
 st.markdown("---")
 
+# --- 新版 UI：颜色映射字典 ---
+color_map = {
+    f"{ma_periods[0] if len(ma_periods)>0 else 20}DMA": "#1f77b4", # 蓝色 (对应短期)
+    f"{ma_periods[1] if len(ma_periods)>1 else 50}DMA": "#ff7f0e", # 橙色 (对应中期)
+    f"{ma_periods[2] if len(ma_periods)>2 else 200}DMA": "#d62728"  # 红色 (对应长期)
+}
+
 # 6. 图表绘制模块
 # 主图：价格与均线
 fig_price = gr.Figure()
 fig_price.add_trace(gr.Scatter(x=df.index, y=df['Close'], name=f'{ticker} Close', line=dict(color='black', width=1.5)))
 for ma in ma_periods:
-    fig_price.add_trace(gr.Scatter(x=df.index, y=df[f'{ma}DMA'], name=f'{ma}DMA', line=dict(width=1.2)))
+    ma_name = f'{ma}DMA'
+    line_color = color_map.get(ma_name, "gray") # 容错处理，万一用户输入了奇奇怪怪的均线天数
+    fig_price.add_trace(gr.Scatter(x=df.index, y=df[ma_name], name=ma_name, line=dict(color=line_color, width=1.2)))
+    
 fig_price.update_layout(
     title="Price & Moving Averages",
     yaxis_type="log" if log_scale else "linear",
@@ -147,7 +144,10 @@ st.plotly_chart(fig_price, use_container_width=True)
 # 附图：斜率历史曲线
 fig_slope = gr.Figure()
 for ma in ma_periods:
-    fig_slope.add_trace(gr.Scatter(x=df.index, y=df[f'{ma}Slope'], name=f'{ma}DMA Slope', line=dict(width=1.2)))
+    ma_name = f'{ma}DMA'
+    line_color = color_map.get(ma_name, "gray")
+    fig_slope.add_trace(gr.Scatter(x=df.index, y=df[f'{ma}Slope'], name=f'{ma_name} Slope', line=dict(color=line_color, width=1.2)))
+    
 fig_slope.add_shape(type="line", x0=df.index[0], y0=0, x1=df.index[-1], y1=0, line=dict(color="gray", dash="dash"))
 fig_slope.update_layout(
     title=f"SMA Slopes (% per day, {slope_lookback}-day lookback)",
@@ -160,7 +160,6 @@ st.plotly_chart(fig_slope, use_container_width=True)
 st.markdown("### 📈 Slope statistics for selected window")
 stats_df = pd.DataFrame(stats_list).drop(columns=['MA_Value', 'Percentile'])
 stats_df = stats_df.set_index("MA")
-# 格式化输出
 st.dataframe(stats_df.style.format({
     "Current": "{:+.3f}", "Mean": "{:.3f}", "Std": "{:.3f}", "Min": "{:.3f}", "Max": "{:.3f}"
 }), use_container_width=True)
