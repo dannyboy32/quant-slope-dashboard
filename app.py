@@ -127,24 +127,22 @@ for ma in ma_periods:
     fig_price.add_trace(gr.Scatter(x=df.index, y=df[ma_name], name=ma_name, line=dict(color=line_color, width=1.2)))
     
 fig_price.update_layout(
-    # 【修复2】：强制Y轴只显示 100, 200, 300... 整百刻度
     yaxis=dict(
         type="log" if log_scale else "linear",
         tickmode="array",
         tickvals=list(range(100, 2000, 100))
     ),
-    # 【修复1】：强制X轴每6个月显示一次，格式为 "Jul 2021"
     xaxis=dict(
         dtick="M6",
         tickformat="%b %Y"
     ),
-    height=400, 
+    # 【修复重点】：主图高度从 400 增加到了 600，让 K 线更舒展
+    height=600, 
     margin=dict(l=20, r=20, t=10, b=20),
     hovermode="x unified",
     legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="left", x=0, title=None)
 )
 st.plotly_chart(fig_price, use_container_width=True)
-
 
 st.subheader(f"SMA Slopes (% per day, {slope_lookback}-day lookback)")
 fig_slope = gr.Figure()
@@ -157,12 +155,12 @@ fig_slope.add_shape(type="line", x0=df.index[0], y0=0, x1=df.index[-1], y1=0, li
 
 fig_slope.update_layout(
     yaxis=dict(title="Slope (% per day)", dtick=0.2), 
-    # 【修复1】：附图X轴同步格式化
     xaxis=dict(
         dtick="M6",
         tickformat="%b %Y"
     ),
-    height=300, 
+    # 【修复重点】：附图高度从 300 增加到了 400，让波动细节更清晰
+    height=400, 
     margin=dict(l=20, r=20, t=10, b=20),
     hovermode="x unified",
     legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="left", x=0, title=None)
