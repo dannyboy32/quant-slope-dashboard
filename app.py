@@ -14,7 +14,6 @@ date_range = st.sidebar.selectbox("Date range", ["1Y", "3Y", "5Y", "10Y"], index
 ma_input = st.sidebar.text_input("MA periods (comma-separated)", value="20, 50, 200")
 slope_lookback = st.sidebar.slider("Slope lookback (trading days)", min_value=2, max_value=20, value=5)
 
-# 【终极修复1】：补全左侧的成交量开关和完整的文字描述
 st.sidebar.markdown("---")
 show_volume = st.sidebar.checkbox("Show volume on price chart", value=False)
 log_scale = st.sidebar.checkbox("Log scale on price (useful for 10-20Y)", value=True)
@@ -35,7 +34,6 @@ def load_data(symbol, period):
     data = yf.download(symbol, period=period, auto_adjust=False)
     if isinstance(data.columns, pd.MultiIndex):
         data.columns = data.columns.droplevel(1)
-    # 【终极修复2】：这里不仅要取 Close 收盘价，还要把 Volume 成交量取下来
     return data[['Close', 'Volume']].dropna()
 
 try:
@@ -126,7 +124,6 @@ color_map = {
 st.subheader("Price & Moving Averages")
 fig_price = gr.Figure()
 
-# 【终极修复3】：如果勾选了成交量，就把它画在辅Y轴（y2）上，并设置浅灰色半透明
 if show_volume:
     fig_price.add_trace(gr.Bar(
         x=df.index, y=df['Volume'], name='Volume', 
@@ -139,14 +136,18 @@ for ma in ma_periods:
     line_color = color_map.get(ma_name, "gray") 
     fig_price.add_trace(gr.Scatter(x=df.index, y=df[ma_name], name=ma_name, line=dict(color=line_color, width=1.2)))
 
-# 动态配置主图的排版（为了给成交量腾出底部空间）
 layout_update = dict(
     yaxis=dict(
         type="log" if log_scale else "linear",
         tickmode="array",
         tickvals=list(range(100, 2000, 100))
     ),
-    xaxis=dict(dtick="M6", tickformat="%b %Y"),
+    # 【终极修复：增加 hoverformat 显式定义悬停日期格式】
+    xaxis=dict(
+        dtick="M6", 
+        tickformat="%b %Y",
+        hoverformat="%Y-%m-%d" 
+    ),
     height=600, 
     margin=dict(l=20, r=20, t=10, b=20),
     hovermode="x unified",
@@ -154,8 +155,8 @@ layout_update = dict(
 )
 
 if show_volume:
-    layout_update['yaxis']['domain'] = [0.2, 1] # 主K线占据上方 80% 空间
-    layout_update['yaxis2'] = dict(domain=[0, 0.15], showticklabels=False, showgrid=False) # 成交量占据底部 15% 空间
+    layout_update['yaxis']['domain'] = [0.2, 1] 
+    layout_update['yaxis2'] = dict(domain=[0, 0.15], showticklabels=False, showgrid=False) 
 else:
     layout_update['yaxis']['domain'] = [0, 1]
 
@@ -174,11 +175,12 @@ fig_slope.add_shape(type="line", x0=df.index[0], y0=0, x1=df.index[-1], y1=0, li
 
 fig_slope.update_layout(
     yaxis=dict(title="Slope (% per day)", dtick=0.2), 
+    # 【终极修复：增加 hoverformat 显式定义悬停日期格式】
     xaxis=dict(
         dtick="M6",
-        tickformat="%b %Y"
+        tickformat="%b %Y",
+        hoverformat="%Y-%m-%d"
     ),
-    # 【终极修复4】：附图高度拉伸到 500 像素
     height=500, 
     margin=dict(l=20, r=20, t=10, b=20),
     hovermode="x unified",
