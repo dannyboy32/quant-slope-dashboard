@@ -49,7 +49,7 @@ start_date_str = df.index[0].strftime('%Y-%m-%d')
 end_date_str = df.index[-1].strftime('%Y-%m-%d')
 st.caption(f"Range: {start_date_str} → {end_date_str} ({len(df)} trading days)")
 
-# 4. 量化核心计算：均线与极简斜率公式
+# 4. 量化核心计算
 stats_list = []
 latest_close = df['Close'].iloc[-1]
 latest_date = df.index[-1].strftime('%Y-%m-%d')
@@ -86,7 +86,7 @@ for ma in ma_periods:
         "MA_Value": df[f'{ma}DMA'].iloc[-1]
     })
 
-# 5. 顶层看板渲染 (KPI Metrics)
+# 5. 顶层看板渲染
 cols = st.columns(len(ma_periods) + 1)
 with cols[0]:
     st.metric(label=f"Close ({ticker})", value=f"${latest_close:.2f}", delta=f"as of {latest_date}", delta_color="inverse")
@@ -118,7 +118,6 @@ color_map = {
 }
 
 # 6. 图表绘制模块
-# 【终极修复1】：使用 Streamlit 原生大标题，去除图表内部标题避免拥挤
 st.subheader("Price & Moving Averages")
 fig_price = gr.Figure()
 fig_price.add_trace(gr.Scatter(x=df.index, y=df['Close'], name=f'{ticker} Close', line=dict(color='black', width=1.5)))
@@ -128,15 +127,25 @@ for ma in ma_periods:
     fig_price.add_trace(gr.Scatter(x=df.index, y=df[ma_name], name=ma_name, line=dict(color=line_color, width=1.2)))
     
 fig_price.update_layout(
-    yaxis_type="log" if log_scale else "linear",
+    # 【修复2】：强制Y轴只显示 100, 200, 300... 整百刻度
+    yaxis=dict(
+        type="log" if log_scale else "linear",
+        tickmode="array",
+        tickvals=list(range(100, 2000, 100))
+    ),
+    # 【修复1】：强制X轴每6个月显示一次，格式为 "Jul 2021"
+    xaxis=dict(
+        dtick="M6",
+        tickformat="%b %Y"
+    ),
     height=400, 
-    margin=dict(l=20, r=20, t=10, b=20), # t=10 缩小顶部留白，让图表紧凑
+    margin=dict(l=20, r=20, t=10, b=20),
     hovermode="x unified",
     legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="left", x=0, title=None)
 )
 st.plotly_chart(fig_price, use_container_width=True)
 
-# 【终极修复1】：附图同样使用 Streamlit 原生大标题
+
 st.subheader(f"SMA Slopes (% per day, {slope_lookback}-day lookback)")
 fig_slope = gr.Figure()
 for ma in ma_periods:
@@ -146,9 +155,13 @@ for ma in ma_periods:
     
 fig_slope.add_shape(type="line", x0=df.index[0], y0=0, x1=df.index[-1], y1=0, line=dict(color="gray", dash="dash"))
 
-# 【终极修复2】：增加 dtick=0.2 强制刻度间距
 fig_slope.update_layout(
     yaxis=dict(title="Slope (% per day)", dtick=0.2), 
+    # 【修复1】：附图X轴同步格式化
+    xaxis=dict(
+        dtick="M6",
+        tickformat="%b %Y"
+    ),
     height=300, 
     margin=dict(l=20, r=20, t=10, b=20),
     hovermode="x unified",
