@@ -146,14 +146,12 @@ for ma in ma_periods:
 # 主图排版配置
 layout_update = dict(
     yaxis=dict(
-        type="log" if log_scale else "linear",
-        tickmode="array",
-        tickvals=list(range(100, 2000, 100)) # 强制按100刻度显示
+        type="log" if log_scale else "linear"
     ),
     xaxis=dict(
-        dtick="M6",               # 每6个月标记一次
-        tickformat="%b %Y",       # 底部X轴显示月份和年份
-        hoverformat="%Y-%m-%d"    # 悬停提示框精确到天
+        hoverformat="%Y-%m-%d",    # 悬停提示框精确到天
+        minallowed=df.index[0],    # 限制向左拖拽的极限
+        maxallowed=df.index[-1]    # 限制向右拖拽的极限
     ),
     height=600, # 主图高度 600px 保证舒展
     margin=dict(l=20, r=20, t=10, b=20),
@@ -185,11 +183,11 @@ fig_slope.add_shape(type="line", x0=df.index[0], y0=0, x1=df.index[-1], y1=0, li
 
 # 附图排版配置
 fig_slope.update_layout(
-    yaxis=dict(title="Slope (% per day)", dtick=0.2), # 强制 0.2 刻度
+    yaxis=dict(title="Slope (% per day)"), 
     xaxis=dict(
-        dtick="M6",
-        tickformat="%b %Y",
-        hoverformat="%Y-%m-%d"
+        hoverformat="%Y-%m-%d",
+        minallowed=df.index[0],
+        maxallowed=df.index[-1]
     ),
     height=500, # 附图高度 500px 
     margin=dict(l=20, r=20, t=10, b=20),
