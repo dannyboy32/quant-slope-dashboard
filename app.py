@@ -34,6 +34,11 @@ range_dict = {"1Y": "1y", "3Y": "3y", "5Y": "5y", "10Y": "10y"}
 @st.cache_data(ttl=3600)  
 def load_data(symbol, period):
     data = yf.download(symbol, period=period, auto_adjust=False)
+    
+    # 【新增防御机制】：如果数据为空，主动抛出异常，阻断 Streamlit 缓存这个错误结果
+    if data.empty:
+        raise ValueError(f"Yahoo API 暂时未返回数据 (Period: {period})，可能是网络波动或接口限流。请稍后重试。")
+        
     if isinstance(data.columns, pd.MultiIndex):
         data.columns = data.columns.droplevel(1)
     # 获取 Close 和 Volume
